@@ -23,9 +23,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $description = mysqli_real_escape_string($conn, $_POST['description']);
             $price = floatval($_POST['price']);
             $duration = intval($_POST['duration_minutes']);
+            
+            // Handle image upload
+            $imagePath = null;
+            if (isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+                $fileType = $_FILES['service_image']['type'];
+                
+                if (in_array($fileType, $allowedTypes)) {
+                    $uploadDir = 'uploads/services/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    $fileExtension = pathinfo($_FILES['service_image']['name'], PATHINFO_EXTENSION);
+                    $fileName = uniqid('service_') . '.' . $fileExtension;
+                    $targetPath = $uploadDir . $fileName;
+                    
+                    if (move_uploaded_file($_FILES['service_image']['tmp_name'], $targetPath)) {
+                        $imagePath = $targetPath;
+                    }
+                }
+            }
 
-            $query = "INSERT INTO services (service_name, description, price, duration_minutes) 
-                      VALUES ('$name', '$description', $price, $duration)";
+            $query = "INSERT INTO services (service_name, description, price, duration_minutes, image_path) 
+                      VALUES ('$name', '$description', $price, $duration, " . ($imagePath ? "'$imagePath'" : "NULL") . ")";
             mysqli_query($conn, $query);
         } elseif ($action === 'edit') {
             $id = intval($_POST['service_id']);
@@ -33,12 +55,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $description = mysqli_real_escape_string($conn, $_POST['description']);
             $price = floatval($_POST['price']);
             $duration = intval($_POST['duration_minutes']);
+            
+            // Handle image upload
+            $imageUpdate = '';
+            if (isset($_FILES['service_image']) && $_FILES['service_image']['error'] === 0) {
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+                $fileType = $_FILES['service_image']['type'];
+                
+                if (in_array($fileType, $allowedTypes)) {
+                    $uploadDir = 'uploads/services/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    // Delete old image if exists
+                    $oldImageQuery = "SELECT image_path FROM services WHERE id = $id";
+                    $oldImageResult = mysqli_query($conn, $oldImageQuery);
+                    if ($oldImageRow = mysqli_fetch_assoc($oldImageResult)) {
+                        if ($oldImageRow['image_path'] && file_exists($oldImageRow['image_path'])) {
+                            unlink($oldImageRow['image_path']);
+                        }
+                    }
+                    
+                    $fileExtension = pathinfo($_FILES['service_image']['name'], PATHINFO_EXTENSION);
+                    $fileName = uniqid('service_') . '.' . $fileExtension;
+                    $targetPath = $uploadDir . $fileName;
+                    
+                    if (move_uploaded_file($_FILES['service_image']['tmp_name'], $targetPath)) {
+                        $imageUpdate = ", image_path = '$targetPath'";
+                    }
+                }
+            }
 
             $query = "UPDATE services SET 
                       service_name = '$name',
                       description = '$description',
                       price = $price,
                       duration_minutes = $duration
+                      $imageUpdate
                       WHERE id = $id";
             mysqli_query($conn, $query);
         } elseif ($action === 'delete') {
@@ -194,6 +248,25 @@ $result = mysqli_query($conn, $query);
             background-color: #fee2e2;
             color: #991b1b;
         }
+        
+        .service-image {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+        
+        .no-image {
+            width: 60px;
+            height: 60px;
+            background-color: #f3f4f6;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af;
+            font-size: 24px;
+        }
 
         .action-buttons {
             display: flex;
@@ -332,6 +405,7 @@ $result = mysqli_query($conn, $query);
             <table>
                 <thead>
                     <tr>
+                        <th>Image</th>
                         <th>Service Name</th>
                         <th>Description</th>
                         <th>Price</th>
@@ -345,6 +419,13 @@ $result = mysqli_query($conn, $query);
                 <tbody>
                     <?php while ($row = mysqli_fetch_assoc($result)): ?>
                     <tr>
+                        <td>
+                            <?php if (!empty($row['image_path']) && file_exists($row['image_path'])): ?>
+                                <img src="<?php echo htmlspecialchars($row['image_path']); ?>" alt="<?php echo htmlspecialchars($row['service_name']); ?>" class="service-image">
+                            <?php else: ?>
+                                <div class="no-image"><i class="fa-solid fa-image"></i></div>
+                            <?php endif; ?>
+                        </td>
                         <td><strong><?php echo htmlspecialchars($row['service_name']); ?></strong></td>
                         <td><?php echo htmlspecialchars($row['description']); ?></td>
                         <td>₱<?php echo number_format($row['price'], 2); ?></td>
@@ -391,13 +472,19 @@ $result = mysqli_query($conn, $query);
     <div class="modal" id="serviceModal">
         <div class="modal-content">
             <h2 id="modalTitle">Add Service</h2>
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="action" id="formAction" value="add">
                 <input type="hidden" name="service_id" id="serviceId">
 
                 <div class="form-group">
                     <label>Service Name</label>
                     <input type="text" name="service_name" id="serviceName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Service Image</label>
+                    <input type="file" name="service_image" id="serviceImage" accept="image/*">
+                    <small style="color: #6b7280; font-size: 12px;">Supported formats: JPG, PNG, GIF</small>
                 </div>
 
                 <div class="form-group">

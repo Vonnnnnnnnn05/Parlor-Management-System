@@ -272,6 +272,21 @@ $services_result = mysqli_query($conn, $services_query);
             font-size: 30px;
             color: white;
         }
+        
+        .service-image-wrapper {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(138, 90, 122, 0.2);
+        }
+        
+        .service-image-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
         .service-card h3 {
             color: var(--primary);
@@ -689,9 +704,15 @@ $services_result = mysqli_query($conn, $services_query);
             <div class="services-grid">
                 <?php while ($service = mysqli_fetch_assoc($services_result)): ?>
                 <div class="service-card">
-                    <div class="service-icon">
-                        <i class="fas fa-spa"></i>
-                    </div>
+                    <?php if (!empty($service['image_path']) && file_exists($service['image_path'])): ?>
+                        <div class="service-image-wrapper">
+                            <img src="<?php echo htmlspecialchars($service['image_path']); ?>" alt="<?php echo htmlspecialchars($service['service_name']); ?>">
+                        </div>
+                    <?php else: ?>
+                        <div class="service-icon">
+                            <i class="fas fa-spa"></i>
+                        </div>
+                    <?php endif; ?>
                     <h3><?php echo htmlspecialchars($service['service_name']); ?></h3>
                     <p class="service-description"><?php echo htmlspecialchars($service['description']); ?></p>
                     <div class="service-details">
